@@ -68,11 +68,23 @@ const server = new ApolloServer({
   playground: true
 });
 
-async function startApolloServer() {
-  await server.start();
-  // Кажемо Apollo слухати саме ту адресу, яку генерує Netlify
-  server.applyMiddleware({ app, path: '/.netlify/functions/graphql' }); 
+// Змінна для зберігання готового обробника
+let graphqlHandler;
+
+// Асинхронна функція, яка гарантує, що сервер запуститься ПЕРЕД обробкою запиту
+async function setupApollo() {
+  if (!graphqlHandler) {
+    await server.start();
+    // Шлях має строго збігатися з тим, що викликає фронтенд
+    server.applyMiddleware({ app, path: '/.netlify/functions/graphql' });
+    graphqlHandler = serverless(app);
+  }
 }
 
-startApolloServer(); 
-exports.handler = serverless(app);
+// Експортуємо асинхронний хендлер
+exports.handler = async (event, context) => {
+  // Чекаємо, поки Apollo точно ініціалізується
+  await setupApollo();
+  // Тільки після цього віддаємо йому запит
+  return graphqlHandler(event, context);
+};
