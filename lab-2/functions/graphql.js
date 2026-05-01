@@ -1,7 +1,10 @@
-const { ApolloServer, gql } = require("apollo-server-lambda");
+const { ApolloServer, gql } = require("apollo-server-express");
+const express = require("express");
+const serverless = require("serverless-http");
 const { ObjectId } = require("mongodb");
-const connectDB = require("../db"); 
+const connectDB = require("../db");
 
+// Схема
 const typeDefs = gql`
   type Task {
     _id: ID!
@@ -11,22 +14,22 @@ const typeDefs = gql`
   }
 
   type Query {
-    tasks(skip: Int, take: Int): [Task]
+    tasks: [Task]
     task(id: ID!): Task
   }
 
   type Mutation {
     createTask(title: String!, description: String): Task
-    updateTask(id: ID!, title: String, description: String, completed: Boolean): Task
     deleteTask(id: ID!): Boolean
   }
 `;
 
+// Резолвери
 const resolvers = {
   Query: {
-    tasks: async (_, { skip = 0, take = 10 }) => {
+    tasks: async () => {
       const collection = await connectDB();
-      return await collection.find({}).skip(skip).limit(take).toArray();
+      return await collection.find({}).toArray();
     },
     task: async (_, { id }) => {
       const collection = await connectDB();
@@ -40,14 +43,6 @@ const resolvers = {
       const result = await collection.insertOne(newTask);
       return { ...newTask, _id: result.insertedId };
     },
-    updateTask: async (_, { id, ...updateFields }) => {
-      const collection = await connectDB();
-      await collection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateFields }
-      );
-      return await collection.findOne({ _id: new ObjectId(id) });
-    },
     deleteTask: async (_, { id }) => {
       const collection = await connectDB();
       const result = await collection.deleteOne({ _id: new ObjectId(id) });
@@ -56,11 +51,20 @@ const resolvers = {
   },
 };
 
+// Налаштування сервера через Express (як у методичці)
+const app = express();
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  introspection: true, 
+  introspection: true,
   playground: true
 });
 
-exports.handler = server.createHandler();
+async function startApolloServer() {
+  await server.start();
+  server.applyMiddleware({ app, path: '/graphql' }); 
+}
+
+startApolloServer(); 
+
+exports.handler = serverless(app);
