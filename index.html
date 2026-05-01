@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Tracker</title>
+    <style>
+        body {
+            background-color: #2b2622;
+            color: #d4c4b7;
+            font-family: 'Georgia', serif;
+            display: flex;
+            justify-content: center;
+            padding-top: 80px;
+            margin: 0;
+        }
+        .container {
+            background-color: #3b342d;
+            padding: 30px 40px;
+            border-radius: 4px;
+            border: 1px solid #5a5045;
+            width: 450px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        h1 {
+            text-align: center;
+            font-weight: normal;
+            border-bottom: 1px solid #5a5045;
+            padding-bottom: 15px;
+            margin-top: 0;
+            letter-spacing: 1px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            background-color: #2b2622;
+            border: 1px solid #5a5045;
+            color: #d4c4b7;
+            font-family: inherit;
+            font-size: 1rem;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #8c7a6b;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #5a5045;
+            color: #d4c4b7;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #726659;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px dotted #5a5045;
+        }
+        .completed span {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+        .actions button {
+            padding: 5px 10px;
+            margin-left: 5px;
+            font-size: 0.9em;
+            background-color: transparent;
+            border: 1px solid #5a5045;
+        }
+        .actions button:hover {
+            background-color: #5a5045;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>University Tasks</h1>
+    <div class="input-group">
+        <input type="text" id="taskInput" placeholder="Add new lecture or lab...">
+        <button onclick="addTask()">Add</button>
+    </div>
+    <ul id="taskList"></ul>
+</div>
+
+<script>
+    // Звертаємося до нашого бекенду (Netlify Functions)
+    const API_URL = '/.netlify/functions/tasks';
+
+    // 1. Отримання завдань (GET)[cite: 1]
+    async function fetchTasks() {
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error(`Помилка: ${response.status}`);
+            const tasks = await response.json();
+            renderTasks(tasks);
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+
+    // Відображення завдань у DOM
+    function renderTasks(tasks) {
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+        tasks.forEach(task => {
+            const li = document.createElement('li');
+            if (task.completed) li.classList.add('completed');
+            
+            li.innerHTML = `
+                <span>${task.title}</span>
+                <div class="actions">
+                    <button onclick="toggleTask('${task._id}', ${!task.completed})" title="Change status">✓</button>
+                    <button onclick="deleteTask('${task._id}')" title="Delete">✗</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    // 2. Додавання завдання (POST)[cite: 1]
+    async function addTask() {
+        const input = document.getElementById('taskInput');
+        if (!input.value.trim()) return;
+
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: input.value })
+        });
+        
+        input.value = '';
+        fetchTasks(); // Оновлюємо список після додавання
+    }
+
+    // 3. Оновлення статусу (PUT)[cite: 1]
+    async function toggleTask(id, isCompleted) {
+        await fetch(`${API_URL}/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: isCompleted })
+        });
+        fetchTasks();
+    }
+
+    // 4. Видалення завдання (DELETE)[cite: 1]
+    async function deleteTask(id) {
+        await fetch(`${API_URL}/${id}`, {
+            method: 'DELETE'
+        });
+        fetchTasks();
+    }
+
+    // Завантажуємо дані при відкритті сторінки
+    fetchTasks();
+</script>
+
+</body>
+</html>
