@@ -61,14 +61,6 @@ const resolvers = {
 };
 
 const app = express();
-
-// МАГІЧНИЙ ФІКС: Перехоплюємо всі запити від Netlify 
-// і примусово кажемо Express'у, що це запит на /graphql
-app.use((req, res, next) => {
-  req.url = '/graphql';
-  next();
-});
-
 const server = new ApolloServer({
   typeDefs,
   resolvers,
@@ -80,14 +72,19 @@ let graphqlHandler;
 
 async function setupApollo() {
   await server.start();
-  // Тепер Apollo завжди буде ловити запит, бо ми вище підмінили req.url
-  server.applyMiddleware({ app, path: '/graphql' });
+  // Використовуємо зірочку: хай Apollo ловить ВСІ шляхи, так Netlify його не заплутає
+  server.applyMiddleware({ app, path: '*' });
 }
 
 exports.handler = async (event, context) => {
+  // МАГІЧНИЙ РЯДОК ПРОТИ 503 ПОМИЛКИ:
+  // Кажемо лямбда-функції не чекати фонових з'єднань MongoDB
+  context.callbackWaitsForEmptyEventLoop = false;
+
   if (!graphqlHandler) {
     await setupApollo();
     graphqlHandler = serverless(app);
   }
+  
   return graphqlHandler(event, context);
 };
