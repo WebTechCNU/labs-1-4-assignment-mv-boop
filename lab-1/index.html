@@ -100,22 +100,48 @@
 </div>
 
 <script>
-    // Звертаємося до нашого бекенду (Netlify Functions)
-    const API_URL = '/.netlify/functions/tasks';
+    // Тепер ми звертаємося тільки до єдиного GraphQL endpoint
+    const API_URL = '/graphql';
 
-    // 1. Отримання завдань (GET)[cite: 1]
-    async function fetchTasks() {
+    // Універсальна функція для відправки GraphQL запитів
+    async function fetchGraphQL(query, variables = {}) {
         try {
-            const response = await fetch(API_URL);
-            if (!response.ok) throw new Error(`Помилка: ${response.status}`);
-            const tasks = await response.json();
-            renderTasks(tasks);
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query, variables })
+            });
+            if (!response.ok) throw new Error(`Помилка мережі: ${response.status}`);
+            
+            const result = await response.json();
+            if (result.errors) {
+                console.error("GraphQL помилки:", result.errors);
+                throw new Error("Помилка при виконанні GraphQL запиту");
+            }
+            return result.data;
         } catch (error) {
-            console.error(error.message);
+            console.error("Fetch error:", error);
         }
     }
 
-    // Відображення завдань у DOM
+    // 1. Отримання завдань (Query)
+    async function fetchTasks() {
+        const query = `
+            query {
+                tasks {
+                    _id
+                    title
+                    completed
+                }
+            }
+        `;
+        const data = await fetchGraphQL(query);
+        if (data && data.tasks) {
+            renderTasks(data.tasks);
+        }
+    }
+
+    // Відображення завдань у DOM (Ця функція залишається майже без змін)
     function renderTasks(tasks) {
         const list = document.getElementById('taskList');
         list.innerHTML = '';
@@ -134,37 +160,54 @@
         });
     }
 
-    // 2. Додавання завдання (POST)[cite: 1]
+    // 2. Додавання завдання (Mutation)
     async function addTask() {
         const input = document.getElementById('taskInput');
-        if (!input.value.trim()) return;
+        const title = input.value.trim();
+        if (!title) return;
 
-        await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: input.value })
-        });
+        const query = `
+            mutation CreateTask($title: String!) {
+                createTask(title: $title) {
+                    _id
+                    title
+                    completed
+                }
+            }
+        `;
+        
+        await fetchGraphQL(query, { title });
         
         input.value = '';
-        fetchTasks(); // Оновлюємо список після додавання
+        fetchTasks(); // Оновлюємо список
     }
 
-    // 3. Оновлення статусу (PUT)[cite: 1]
+    // 3. Оновлення статусу (Mutation)
+    // Зверни увагу: у твоїй схемі updateTask приймає id (ID!), title (String), description (String) і completed (Boolean)
     async function toggleTask(id, isCompleted) {
-        await fetch(`${API_URL}/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed: isCompleted })
-        });
-        fetchTasks();
+        const query = `
+            mutation UpdateTask($id: ID!, $completed: Boolean) {
+                updateTask(id: $id, completed: $completed) {
+                    _id
+                    completed
+                }
+            }
+        `;
+        
+        await fetchGraphQL(query, { id, completed: isCompleted });
+        fetchTasks(); // Оновлюємо список
     }
 
-    // 4. Видалення завдання (DELETE)[cite: 1]
+    // 4. Видалення завдання (Mutation)
     async function deleteTask(id) {
-        await fetch(`${API_URL}/${id}`, {
-            method: 'DELETE'
-        });
-        fetchTasks();
+        const query = `
+            mutation DeleteTask($id: ID!) {
+                deleteTask(id: $id)
+            }
+        `;
+        
+        await fetchGraphQL(query, { id });
+        fetchTasks(); // Оновлюємо список
     }
 
     // Завантажуємо дані при відкритті сторінки
