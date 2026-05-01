@@ -70,8 +70,8 @@ const server = new ApolloServer({
 
 async function startApolloServer() {
   await server.start();
-  // Додаємо зірочку, щоб Express ловив запити незалежно від того, як Netlify переписує URL
-  server.applyMiddleware({ app, path: '*' }); 
+  // Кажемо Apollo слухати саме ту адресу, яку генерує Netlify
+  server.applyMiddleware({ app, path: '/.netlify/functions/graphql' }); 
 }
 
 startApolloServer(); 
