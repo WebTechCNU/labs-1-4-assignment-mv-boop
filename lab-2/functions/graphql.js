@@ -1,6 +1,6 @@
 const { ApolloServer, gql } = require("apollo-server-lambda");
 const { ObjectId } = require("mongodb");
-const connectDB = require("./db"); // Переконайся, що шлях правильний
+const connectDB = require("../../functions/db"); 
 
 const typeDefs = gql`
   type Task {
