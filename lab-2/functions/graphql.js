@@ -3,6 +3,7 @@ const express = require("express");
 const serverless = require("serverless-http");
 const { ObjectId } = require("mongodb");
 const connectDB = require("../db");
+const jwt = require("jsonwebtoken");
 
 // Схема
 const typeDefs = gql`
@@ -52,7 +53,11 @@ const resolvers = {
       );
       return await collection.findOne({ _id: new ObjectId(id) });
     },
-    deleteTask: async (_, { id }) => {
+    deleteTask: async (_, { id }, context) => {
+      if (!context.user) {
+        throw new Error("Unauthorized: No token provided or Invalid token");
+      }
+      
       const collection = await connectDB();
       const result = await collection.deleteOne({ _id: new ObjectId(id) });
       return result.deletedCount > 0;
@@ -61,11 +66,31 @@ const resolvers = {
 };
 
 const app = express();
+
+app.use((req, res, next) => {
+  req.url = '/graphql';
+  next();
+});
+
 const server = new ApolloServer({
   typeDefs,
   resolvers,
   introspection: true,
-  playground: true
+  playground: true,
+  context: ({ req }) => {
+    // Дістаємо токен: event.headers.authorization?.split(" ")[1]
+    const token = req.headers.authorization?.split(" ")[1];
+    if (token) {
+      try {
+        const secretKey = process.env.JWT_SECRET;
+        const user = jwt.verify(token, secretKey);
+        return { user }; // Якщо токен валідний, кладемо юзера в контекст
+      } catch (error) {
+        console.error("Invalid token");
+      }
+    }
+    return {}; // Якщо токена немає або він кривий, повертаємо порожній контекст
+  }
 });
 
 let graphqlHandler;
