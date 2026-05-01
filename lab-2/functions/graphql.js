@@ -61,6 +61,14 @@ const resolvers = {
 };
 
 const app = express();
+
+// МАГІЧНИЙ ФІКС: Перехоплюємо всі запити від Netlify 
+// і примусово кажемо Express'у, що це запит на /graphql
+app.use((req, res, next) => {
+  req.url = '/graphql';
+  next();
+});
+
 const server = new ApolloServer({
   typeDefs,
   resolvers,
@@ -68,23 +76,18 @@ const server = new ApolloServer({
   playground: true
 });
 
-// Змінна для зберігання готового обробника
 let graphqlHandler;
 
-// Асинхронна функція, яка гарантує, що сервер запуститься ПЕРЕД обробкою запиту
 async function setupApollo() {
-  if (!graphqlHandler) {
-    await server.start();
-    // Шлях має строго збігатися з тим, що викликає фронтенд
-    server.applyMiddleware({ app, path: '/.netlify/functions/graphql' });
-    graphqlHandler = serverless(app);
-  }
+  await server.start();
+  // Тепер Apollo завжди буде ловити запит, бо ми вище підмінили req.url
+  server.applyMiddleware({ app, path: '/graphql' });
 }
 
-// Експортуємо асинхронний хендлер
 exports.handler = async (event, context) => {
-  // Чекаємо, поки Apollo точно ініціалізується
-  await setupApollo();
-  // Тільки після цього віддаємо йому запит
+  if (!graphqlHandler) {
+    await setupApollo();
+    graphqlHandler = serverless(app);
+  }
   return graphqlHandler(event, context);
 };
