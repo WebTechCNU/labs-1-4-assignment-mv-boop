@@ -10,7 +10,7 @@ const typeDefs = gql`
     _id: ID!
     title: String!
     description: String
-    completed: Boolean!
+    completed: Boolean
   }
 
   type Query {
@@ -20,6 +20,7 @@ const typeDefs = gql`
 
   type Mutation {
     createTask(title: String!, description: String): Task
+    updateTask(id: ID!, completed: Boolean): Task
     deleteTask(id: ID!): Boolean
   }
 `;
@@ -43,6 +44,14 @@ const resolvers = {
       const result = await collection.insertOne(newTask);
       return { ...newTask, _id: result.insertedId };
     },
+    updateTask: async (_, { id, completed }) => {
+      const collection = await connectDB();
+      await collection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { completed } }
+      );
+      return await collection.findOne({ _id: new ObjectId(id) });
+    },
     deleteTask: async (_, { id }) => {
       const collection = await connectDB();
       const result = await collection.deleteOne({ _id: new ObjectId(id) });
@@ -51,7 +60,6 @@ const resolvers = {
   },
 };
 
-// Налаштування сервера через Express (як у методичці)
 const app = express();
 const server = new ApolloServer({
   typeDefs,
@@ -62,9 +70,9 @@ const server = new ApolloServer({
 
 async function startApolloServer() {
   await server.start();
-  server.applyMiddleware({ app, path: '/graphql' }); 
+  // Додаємо зірочку, щоб Express ловив запити незалежно від того, як Netlify переписує URL
+  server.applyMiddleware({ app, path: '*' }); 
 }
 
 startApolloServer(); 
-
 exports.handler = serverless(app);

@@ -101,7 +101,7 @@
 
 <script>
     // Тепер ми звертаємося тільки до єдиного GraphQL endpoint
-    const API_URL = '/graphql';
+    const API_URL = '/.netlify/functions/graphql';
 
     // Універсальна функція для відправки GraphQL запитів
     async function fetchGraphQL(query, variables = {}) {
